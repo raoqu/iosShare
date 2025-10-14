@@ -8,10 +8,11 @@ struct MainView: View {
     
     var body: some View {
         NavigationView {
-            ZStack {
+            Group {
                 if manager.items.isEmpty {
                     // 空状态视图
                     emptyStateView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     // 分享内容列表
                     List {
@@ -37,6 +38,10 @@ struct MainView: View {
             }
             .navigationTitle("TransAny")
             .navigationBarTitleDisplayMode(.large)
+            .background(
+                Color(.systemBackground)
+                    .ignoresSafeArea()
+            )
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -72,6 +77,7 @@ struct MainView: View {
                 ItemDetailView(item: item)
             }
         }
+        .navigationViewStyle(.stack)
     }
     
     // 空状态视图

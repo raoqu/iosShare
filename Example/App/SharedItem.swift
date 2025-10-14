@@ -69,7 +69,10 @@ class SharedItemsManager: ObservableObject {
     static let shared = SharedItemsManager()
     
     private init() {
-        loadItems()
+        // 异步加载数据，避免阻塞主线程
+        Task {
+            await loadItems()
+        }
     }
     
     func addItem(_ item: SharedItem) {
@@ -98,14 +101,52 @@ class SharedItemsManager: ObservableObject {
         }
     }
     
-    private func loadItems() {
+    private func loadItems() async {
+        // Try to load encoded SharedItem array first
         if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
            let decoded = try? JSONDecoder().decode([SharedItem].self, from: data) {
             items = decoded
-        } else {
-            // 添加一些示例数据
-            items = createSampleData()
+            return
         }
+        
+        // Try to load dictionary array from ShareViewController
+        if let dictArray = UserDefaults.standard.array(forKey: userDefaultsKey) as? [[String: Any]] {
+            items = dictArray.compactMap { dict in
+                guard let title = dict["title"] as? String,
+                      let content = dict["content"] as? String,
+                      let typeString = dict["type"] as? String else {
+                    return nil
+                }
+                
+                let contentType: SharedContentType
+                switch typeString {
+                case "url": contentType = .url
+                case "image": contentType = .image
+                case "text": contentType = .text
+                case "pdf": contentType = .pdf
+                case "document": contentType = .document
+                case "video": contentType = .video
+                default: contentType = .text
+                }
+                
+                let timestamp = dict["timestamp"] as? Date ?? Date()
+                
+                return SharedItem(
+                    title: title,
+                    contentType: contentType,
+                    content: content,
+                    timestamp: timestamp
+                )
+            }
+            
+            // Save in the new format
+            saveItems()
+            return
+        }
+        
+        // If no data, don't create sample data on first launch
+        // Keep empty list for better performance
+        items = []
     }
     
     private func createSampleData() -> [SharedItem] {

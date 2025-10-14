@@ -12,11 +12,14 @@
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     
+    // 设置背景色为白色，避免黑屏
+    self.window.backgroundColor = [UIColor whiteColor];
+    
     // 使用 SwiftUI 主视图（通过帮助类创建）
     UIViewController *mainViewController = [SceneDelegateHelper createMainViewController];
+    mainViewController.view.backgroundColor = [UIColor whiteColor];
     
     self.window.rootViewController = mainViewController;
-    self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
 }
 

@@ -8,6 +8,13 @@ import UIKit
     @objc static func createMainViewController() -> UIViewController {
         let mainView = MainView()
         let hostingController = UIHostingController(rootView: mainView)
+        
+        // 设置背景色为白色，避免黑色边框
+        hostingController.view.backgroundColor = .white
+        
+        // 禁用安全区域插入，让 SwiftUI 视图完全控制布局
+        hostingController.additionalSafeAreaInsets = .zero
+        
         return hostingController
     }
 }
