@@ -67,5 +67,9 @@
 		<key>UIColorName</key>
 		<string>systemBackgroundColor</string>
 	</dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问您的照片库以选择要分享的照片</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要访问您的照片库以保存照片</string>
 </dict>
 </plist>

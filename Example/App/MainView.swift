@@ -5,6 +5,11 @@ struct MainView: View {
     @StateObject private var manager = SharedItemsManager.shared
     @State private var showingDeleteAlert = false
     @State private var selectedItem: SharedItem?
+    @State private var showingAddMenu = false
+    @State private var showingTextInput = false
+    @State private var showingPhotoPicker = false
+    @State private var showingDocumentPicker = false
+    @State private var inputText = ""
     
     var body: some View {
         NavigationView {
@@ -34,44 +39,50 @@ struct MainView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    // 为右上角菜单按钮预留空间
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        HStack {
+                            Spacer()
+                            if !manager.items.isEmpty {
+                                Menu {
+                                    Button(action: {
+                                        showingDeleteAlert = true
+                                    }) {
+                                        Label("清空所有", systemImage: "trash")
+                                    }
+                                    
+                                    Button(action: {
+                                        addTestItem()
+                                    }) {
+                                        Label("添加测试", systemImage: "plus.circle")
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .font(.title3)
+                                        .foregroundColor(.primary)
+                                        .padding(12)
+                                        .background(
+                                            Circle()
+                                                .fill(Color(.systemBackground))
+                                                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 1)
+                                        )
+                                }
+                                .padding(.trailing, 16)
+                                .padding(.top, 8)
+                            }
+                        }
+                        .frame(height: manager.items.isEmpty ? 0 : 50)
+                        .background(Color(.systemBackground))
+                    }
                 }
             }
-            .navigationTitle("TransAny")
-            .navigationBarTitleDisplayMode(.large)
+            // .navigationTitle("TransAny")
+            // .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)  // 隐藏导航栏，移除占用空间
             .background(
                 Color(.systemBackground)
                     .ignoresSafeArea()
             )
-            .toolbar {
-                // 显示项目数量
-                ToolbarItem(placement: .principal) {
-                    if !manager.items.isEmpty {
-                        Text("\(manager.items.count) 项内容")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: {
-                            showingDeleteAlert = true
-                        }) {
-                            Label("清空所有", systemImage: "trash")
-                        }
-                        .disabled(manager.items.isEmpty)
-                        
-                        Button(action: {
-                            // 添加测试数据
-                            addTestItem()
-                        }) {
-                            Label("添加测试", systemImage: "plus.circle")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
             .alert("清空所有内容", isPresented: $showingDeleteAlert) {
                 Button("取消", role: .cancel) { }
                 Button("清空", role: .destructive) {
@@ -85,6 +96,48 @@ struct MainView: View {
             .sheet(item: $selectedItem) { item in
                 ItemDetailView(item: item)
             }
+            // 底部居中的"+"按钮
+            .overlay(alignment: .bottom) {
+                addButton
+            }
+            // 添加内容菜单
+            .confirmationDialog("添加内容", isPresented: $showingAddMenu) {
+                Button("拍照或选择照片") {
+                    showingPhotoPicker = true
+                }
+                Button("选择文件") {
+                    showingDocumentPicker = true
+                }
+                Button("输入文本") {
+                    showingTextInput = true
+                }
+                Button("取消", role: .cancel) { }
+            }
+            // 文本输入对话框
+            .alert("输入文本", isPresented: $showingTextInput) {
+                TextField("请输入内容", text: $inputText)
+                Button("取消", role: .cancel) {
+                    inputText = ""
+                }
+                Button("保存") {
+                    saveText(inputText)
+                    inputText = ""
+                }
+            } message: {
+                Text("输入要保存的文本内容")
+            }
+            // 照片选择器
+            .sheet(isPresented: $showingPhotoPicker) {
+                PhotoPickerView { images in
+                    savePhotos(images)
+                }
+            }
+            // 文件选择器
+            .sheet(isPresented: $showingDocumentPicker) {
+                DocumentPickerView { urls in
+                    saveDocuments(urls)
+                }
+            }
         }
         .navigationViewStyle(.stack)
         .onAppear {
@@ -95,6 +148,24 @@ struct MainView: View {
             // 应用从后台回到前台时刷新数据
             manager.refresh()
         }
+    }
+    
+    // 底部"+"按钮
+    private var addButton: some View {
+        Button(action: {
+            showingAddMenu = true
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 56, height: 56)
+                .background(
+                    Circle()
+                        .fill(Color.blue)
+                        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                )
+        }
+        .padding(.bottom, 30)
     }
     
     // 空状态视图
@@ -155,6 +226,124 @@ struct MainView: View {
         let randomItem = testItems.randomElement()!
         withAnimation {
             manager.addItem(randomItem)
+        }
+    }
+    
+    // 保存文本
+    private func saveText(_ text: String) {
+        guard !text.isEmpty else { return }
+        
+        let item = SharedItemModel.createTextItem(
+            title: String(text.prefix(30)),
+            text: text,
+            metadata: ["source": "app_input", "length": "\(text.count)"]
+        )
+        
+        SharedStorageManager.shared.saveItem(item)
+        
+        withAnimation {
+            manager.refresh()
+        }
+        
+        print("✅ Saved text: \(text.prefix(50))...")
+    }
+    
+    // 保存照片
+    private func savePhotos(_ images: [UIImage]) {
+        for image in images {
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else { continue }
+            
+            let metadata: [String: String] = [
+                "source": "app_picker",
+                "width": "\(Int(image.size.width))",
+                "height": "\(Int(image.size.height))",
+                "format": "jpeg"
+            ]
+            
+            if let item = SharedItemModel.createPhotoItem(
+                title: "照片 \(Date().formatted(date: .numeric, time: .shortened))",
+                imageData: imageData,
+                metadata: metadata
+            ) {
+                SharedStorageManager.shared.saveItem(item)
+                print("✅ Saved photo: \(item.title)")
+            }
+        }
+        
+        withAnimation {
+            manager.refresh()
+        }
+    }
+    
+    // 保存文档
+    private func saveDocuments(_ urls: [URL]) {
+        for url in urls {
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            guard let data = try? Data(contentsOf: url) else { continue }
+            
+            let filename = url.lastPathComponent
+            let fileExtension = url.pathExtension.lowercased()
+            
+            let metadata: [String: String] = [
+                "source": "app_picker",
+                "filename": filename,
+                "size": "\(data.count)",
+                "extension": fileExtension
+            ]
+            
+            var item: SharedItemModel?
+            
+            switch fileExtension {
+            case "pdf":
+                item = SharedItemModel.createPDFItem(
+                    title: filename,
+                    pdfData: data,
+                    metadata: metadata
+                )
+            case "xlsx", "xls":
+                item = SharedItemModel.createExcelItem(
+                    title: filename,
+                    excelData: data,
+                    metadata: metadata
+                )
+            case "mp4", "mov":
+                item = SharedItemModel.createVideoItem(
+                    title: filename,
+                    videoData: data,
+                    metadata: metadata
+                )
+            case "jpg", "jpeg", "png":
+                if let image = UIImage(data: data) {
+                    item = SharedItemModel.createPhotoItem(
+                        title: filename,
+                        imageData: data,
+                        metadata: metadata
+                    )
+                }
+            default:
+                // 其他类型保存为通用文件
+                let fileManager = SharedStorageManager.shared
+                if let filePath = fileManager.saveFile(data: data, filename: filename) {
+                    item = SharedItemModel(
+                        title: filename,
+                        contentType: "file",
+                        filePath: filePath,
+                        textContent: nil,
+                        metadata: metadata
+                    )
+                }
+            }
+            
+            if let item = item {
+                SharedStorageManager.shared.saveItem(item)
+                print("✅ Saved document: \(filename)")
+            }
+        }
+        
+        withAnimation {
+            manager.refresh()
         }
     }
 }

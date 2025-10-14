@@ -95,18 +95,52 @@ class SharedItemsManager: ObservableObject {
     }
     
     func deleteItem(at offsets: IndexSet) {
+        // 获取要删除的项目
+        let itemsToDelete = offsets.map { items[$0] }
+        
+        // 从 UI 列表中移除
         items.remove(atOffsets: offsets)
+        
+        // 从新格式存储中删除（包括文件）
+        let storage = SharedStorageManager.shared
+        for item in itemsToDelete {
+            // 尝试使用 item.id 删除（如果是新格式）
+            storage.deleteItem(id: item.id.uuidString)
+        }
+        
+        // 保存更新后的列表到旧格式
         saveItems()
+        
+        print("🗑️ Deleted \(itemsToDelete.count) items")
     }
     
     func deleteItem(_ item: SharedItem) {
+        // 从 UI 列表中移除
         items.removeAll { $0.id == item.id }
+        
+        // 从新格式存储中删除（包括文件）
+        SharedStorageManager.shared.deleteItem(id: item.id.uuidString)
+        
+        // 保存更新后的列表到旧格式
         saveItems()
+        
+        print("🗑️ Deleted item: \(item.title)")
     }
     
     func clearAll() {
+        print("🗑️ Clearing all items...")
+        
+        // 清空 UI 列表
         items.removeAll()
-        saveItems()
+        
+        // 清空新格式存储（包括所有文件）
+        SharedStorageManager.shared.clearAll()
+        
+        // 清空旧格式存储
+        defaults.removeObject(forKey: userDefaultsKey)
+        defaults.synchronize()
+        
+        print("✅ All items cleared")
     }
     
     /// 刷新数据（从 UserDefaults 重新加载）
@@ -148,7 +182,18 @@ class SharedItemsManager: ObservableObject {
                 // 如果有文件路径，显示文件路径；否则显示文本内容
                 let content = model.textContent ?? model.filePath ?? ""
                 
+                // 使用 SharedItemModel 的 id 创建 UUID（如果可能）
+                let itemId: UUID
+                if let uuid = UUID(uuidString: model.id) {
+                    itemId = uuid
+                } else {
+                    // 如果 id 不是有效的 UUID，创建一个新的
+                    itemId = UUID()
+                    print("⚠️ Invalid UUID in model.id: \(model.id), creating new UUID")
+                }
+                
                 return SharedItem(
+                    id: itemId,
                     title: model.title,
                     contentType: contentType,
                     content: content,
