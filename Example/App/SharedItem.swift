@@ -126,17 +126,49 @@ class SharedItemsManager: ObservableObject {
     private func loadItems() async {
         print("🔄 Loading shared items from UserDefaults...")
         
-        // Try to load encoded SharedItem array first
-        if let data = defaults.data(forKey: userDefaultsKey),
-           let decoded = try? JSONDecoder().decode([SharedItem].self, from: data) {
-            items = decoded
-            print("✅ Loaded \(items.count) items (JSON format)")
+        // 首先尝试加载新格式（SharedItemModel）
+        let storage = SharedStorageManager.shared
+        let newFormatItems = storage.loadItems()
+        
+        if !newFormatItems.isEmpty {
+            print("✅ Loaded \(newFormatItems.count) items (New Standard Format)")
+            
+            items = newFormatItems.compactMap { model -> SharedItem? in
+                let contentType: SharedContentType
+                switch model.contentType {
+                case "photo": contentType = .image
+                case "url": contentType = .url
+                case "text": contentType = .text
+                case "pdf": contentType = .pdf
+                case "excel": contentType = .document
+                case "video": contentType = .video
+                default: contentType = .text
+                }
+                
+                // 如果有文件路径，显示文件路径；否则显示文本内容
+                let content = model.textContent ?? model.filePath ?? ""
+                
+                return SharedItem(
+                    title: model.title,
+                    contentType: contentType,
+                    content: content,
+                    timestamp: model.timestamp
+                )
+            }
             return
         }
         
-        // Try to load dictionary array from ShareViewController
+        // 兼容旧格式：Try to load encoded SharedItem array
+        if let data = defaults.data(forKey: userDefaultsKey),
+           let decoded = try? JSONDecoder().decode([SharedItem].self, from: data) {
+            items = decoded
+            print("✅ Loaded \(items.count) items (Legacy JSON format)")
+            return
+        }
+        
+        // 兼容旧格式：Try to load dictionary array from ShareViewController
         if let dictArray = defaults.array(forKey: userDefaultsKey) as? [[String: Any]] {
-            print("📋 Found \(dictArray.count) items (Dictionary format)")
+            print("📋 Found \(dictArray.count) items (Legacy Dictionary format)")
             
             items = dictArray.compactMap { dict -> SharedItem? in
                 guard let title = dict["title"] as? String,
@@ -148,10 +180,10 @@ class SharedItemsManager: ObservableObject {
                 let contentType: SharedContentType
                 switch typeString {
                 case "url": contentType = .url
-                case "image": contentType = .image
+                case "image", "photo": contentType = .image
                 case "text": contentType = .text
                 case "pdf": contentType = .pdf
-                case "document": contentType = .document
+                case "document", "excel": contentType = .document
                 case "video": contentType = .video
                 default: contentType = .text
                 }
@@ -167,9 +199,6 @@ class SharedItemsManager: ObservableObject {
             }
             
             print("✅ Converted to \(items.count) SharedItem objects")
-            
-            // Save in the new format for better performance next time
-            saveItems()
             return
         }
         

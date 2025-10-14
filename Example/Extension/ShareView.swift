@@ -92,24 +92,33 @@ struct ShareView: View {
 /// 分享项目模型
 struct ShareItemModel: Identifiable {
     let id = UUID()
-    var type: String
+    var type: String  // photo, pdf, excel, text, url, video
     var content: String
     var title: String
+    var imageData: Data?  // 图片数据
+    var fileData: Data?  // 文件数据（PDF、Excel等）
+    var metadata: [String: String] = [:]  // 扩展参数
     
     var typeIcon: String {
         switch type {
-        case "image": return "photo.fill"
+        case "photo": return "photo.fill"
+        case "pdf": return "doc.fill"
+        case "excel": return "tablecells.fill"
         case "url": return "link.circle.fill"
         case "text": return "doc.text.fill"
+        case "video": return "video.fill"
         default: return "doc.fill"
         }
     }
     
     var typeLabel: String {
         switch type {
-        case "image": return "图片"
+        case "photo": return "图片"
+        case "pdf": return "PDF"
+        case "excel": return "Excel"
         case "url": return "网页链接"
         case "text": return "文本"
+        case "video": return "视频"
         default: return "文件"
         }
     }
@@ -142,15 +151,22 @@ class ShareViewModel: ObservableObject {
         for extensionItem in extensionContext.inputItems as? [NSExtensionItem] ?? [] {
             // 创建临时项目
             var tempItem = ShareItemModel(type: "text", content: "", title: "")
+            var metadata: [String: String] = [:]
             
             // 处理附件
             for provider in extensionItem.attachments ?? [] {
                 // 图片
                 if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                     if let image = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) as? UIImage {
-                        tempItem.type = "image"
+                        tempItem.type = "photo"
                         tempItem.content = "图片 \(Int(image.size.width))×\(Int(image.size.height))"
                         tempItem.title = "图片"
+                        tempItem.imageData = image.jpegData(compressionQuality: 0.8)
+                        
+                        // 添加元数据
+                        metadata["width"] = "\(Int(image.size.width))"
+                        metadata["height"] = "\(Int(image.size.height))"
+                        metadata["format"] = "jpeg"
                     }
                 }
                 // URL
@@ -159,6 +175,22 @@ class ShareViewModel: ObservableObject {
                         tempItem.type = "url"
                         tempItem.content = url.absoluteString
                         tempItem.title = url.host ?? url.absoluteString
+                        
+                        // 添加元数据
+                        metadata["host"] = url.host ?? ""
+                        metadata["scheme"] = url.scheme ?? ""
+                    }
+                }
+                // PDF
+                else if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {
+                    if let data = try? await provider.loadItem(forTypeIdentifier: UTType.pdf.identifier, options: nil) as? Data {
+                        tempItem.type = "pdf"
+                        tempItem.content = "PDF 文档"
+                        tempItem.title = "PDF"
+                        tempItem.fileData = data
+                        
+                        // 添加元数据
+                        metadata["size"] = "\(data.count)"
                     }
                 }
                 // 纯文本
@@ -167,10 +199,14 @@ class ShareViewModel: ObservableObject {
                         tempItem.type = "text"
                         tempItem.content = text
                         tempItem.title = "文本"
+                        
+                        // 添加元数据
+                        metadata["length"] = "\(text.count)"
                     }
                 }
             }
             
+            tempItem.metadata = metadata
             items.append(tempItem)
         }
     }
@@ -199,52 +235,70 @@ class ShareViewModel: ObservableObject {
         extensionContext.cancelRequest(withError: NSError(domain: "TransAnyShareExtension", code: -1, userInfo: nil))
     }
     
-    /// 保存分享项目到 App Group
+    /// 保存分享项目到 App Group（使用新标准格式）
     private func saveSharedItems() {
-        guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
-            print("⚠️ Failed to create UserDefaults with App Group suite")
-            return
-        }
+        let storage = SharedStorageManager.shared
         
-        // 加载现有项目列表
-        var existingItems = defaults.array(forKey: sharedItemsKey) as? [[String: Any]] ?? []
-        let originalCount = existingItems.count
+        print("📋 Saving items using new standard format...")
         
-        print("📋 Loading existing items: \(originalCount) items")
-        
-        // 添加新项目到列表开头（最新的在最前面）
         for item in items {
-            var itemDict: [String: Any] = [
-                "type": item.type,
-                "content": item.content,
-                "timestamp": Date()
-            ]
+            // 确定标题
+            let finalTitle = !userComment.isEmpty ? userComment : (item.title.isEmpty ? "未命名" : item.title)
             
-            // 使用用户输入的描述，否则使用默认标题
-            if !userComment.isEmpty {
-                itemDict["title"] = userComment
-            } else if !item.title.isEmpty {
-                itemDict["title"] = item.title
-            } else {
-                itemDict["title"] = "未命名"
+            var savedItem: SharedItemModel?
+            
+            // 根据类型创建对应的存储项
+            switch item.type {
+            case "photo":
+                if let imageData = item.imageData {
+                    savedItem = SharedItemModel.createPhotoItem(
+                        title: finalTitle,
+                        imageData: imageData,
+                        metadata: item.metadata
+                    )
+                }
+                
+            case "pdf":
+                if let fileData = item.fileData {
+                    savedItem = SharedItemModel.createPDFItem(
+                        title: finalTitle,
+                        pdfData: fileData,
+                        metadata: item.metadata
+                    )
+                }
+                
+            case "text":
+                savedItem = SharedItemModel.createTextItem(
+                    title: finalTitle,
+                    text: item.content,
+                    metadata: item.metadata
+                )
+                
+            case "url":
+                savedItem = SharedItemModel.createURLItem(
+                    title: finalTitle,
+                    url: item.content,
+                    metadata: item.metadata
+                )
+                
+            default:
+                // 未知类型，保存为文本
+                savedItem = SharedItemModel.createTextItem(
+                    title: finalTitle,
+                    text: item.content,
+                    metadata: item.metadata
+                )
             }
             
-            existingItems.insert(itemDict, at: 0)
-            print("➕ Added: [\(item.type)] \(itemDict["title"] ?? "未命名")")
+            if let savedItem = savedItem {
+                storage.saveItem(savedItem)
+                print("✅ Saved: [\(savedItem.contentType)] \(savedItem.title)")
+            } else {
+                print("⚠️ Failed to save item: [\(item.type)] \(finalTitle)")
+            }
         }
         
-        // 限制列表大小，保留最新的 100 条
-        let maxItems = 100
-        if existingItems.count > maxItems {
-            existingItems = Array(existingItems.prefix(maxItems))
-            print("✂️ Trimmed to \(maxItems) items")
-        }
-        
-        // 保存回 UserDefaults
-        defaults.set(existingItems, forKey: sharedItemsKey)
-        defaults.synchronize()
-        
-        print("✅ Saved successfully! Total items: \(existingItems.count) (was: \(originalCount))")
+        print("🎉 All items saved successfully!")
     }
 }
 
