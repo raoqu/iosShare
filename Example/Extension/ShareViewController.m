@@ -85,7 +85,12 @@
 }
 
 - (void)saveSharedItems {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // 使用 App Group 共享的 UserDefaults
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:@"group.cc.raoqu.transany"];
+    if (!defaults) {
+        NSLog(@"⚠️ Failed to create UserDefaults with App Group suite. Using standard defaults.");
+        defaults = [NSUserDefaults standardUserDefaults];
+    }
     
     // Load existing items
     NSArray *existingItems = [defaults arrayForKey:@"SharedItems"] ?: @[];
@@ -100,7 +105,7 @@
     [defaults setObject:allItems forKey:@"SharedItems"];
     [defaults synchronize];
     
-    NSLog(@"Saved %lu items to UserDefaults", (unsigned long)self.receivedItems.count);
+    NSLog(@"✅ Saved %lu items to UserDefaults (App Group: group.cc.raoqu.transany)", (unsigned long)self.receivedItems.count);
 }
 
 - (void)openMainApp {

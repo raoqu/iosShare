@@ -1,6 +1,16 @@
 import Foundation
 import UIKit
 
+/// App Group 配置
+private enum AppGroupConfig {
+    static let identifier = "group.cc.raoqu.transany"
+    static let sharedItemsKey = "SharedItems"
+    
+    static var sharedDefaults: UserDefaults? {
+        return UserDefaults(suiteName: identifier)
+    }
+}
+
 /// 分享内容项模型
 struct SharedItem: Identifiable, Codable {
     let id: UUID
@@ -64,11 +74,15 @@ enum SharedContentType: String, Codable {
 class SharedItemsManager: ObservableObject {
     @Published var items: [SharedItem] = []
     
-    private let userDefaultsKey = "SharedItems"
+    private let userDefaultsKey = AppGroupConfig.sharedItemsKey
+    private let defaults: UserDefaults
     
     static let shared = SharedItemsManager()
     
     private init() {
+        // 使用 App Group 共享的 UserDefaults
+        self.defaults = AppGroupConfig.sharedDefaults ?? .standard
+        
         // 异步加载数据，避免阻塞主线程
         Task {
             await loadItems()
@@ -97,21 +111,22 @@ class SharedItemsManager: ObservableObject {
     
     private func saveItems() {
         if let encoded = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+            defaults.set(encoded, forKey: userDefaultsKey)
+            defaults.synchronize()
         }
     }
     
     private func loadItems() async {
         // Try to load encoded SharedItem array first
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        if let data = defaults.data(forKey: userDefaultsKey),
            let decoded = try? JSONDecoder().decode([SharedItem].self, from: data) {
             items = decoded
             return
         }
         
         // Try to load dictionary array from ShareViewController
-        if let dictArray = UserDefaults.standard.array(forKey: userDefaultsKey) as? [[String: Any]] {
-            items = dictArray.compactMap { dict in
+        if let dictArray = defaults.array(forKey: userDefaultsKey) as? [[String: Any]] {
+            items = dictArray.compactMap { dict -> SharedItem? in
                 guard let title = dict["title"] as? String,
                       let content = dict["content"] as? String,
                       let typeString = dict["type"] as? String else {
