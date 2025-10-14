@@ -109,6 +109,13 @@ class SharedItemsManager: ObservableObject {
         saveItems()
     }
     
+    /// 刷新数据（从 UserDefaults 重新加载）
+    func refresh() {
+        Task {
+            await loadItems()
+        }
+    }
+    
     private func saveItems() {
         if let encoded = try? JSONEncoder().encode(items) {
             defaults.set(encoded, forKey: userDefaultsKey)

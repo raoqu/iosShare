@@ -13,57 +13,16 @@
     
     self.receivedItems = [NSMutableArray array];
     
-    // Process incoming items
+    // 初始化接收的项目（基本信息）
     for (NSExtensionItem *extensionItem in self.extensionContext.inputItems) {
         XExtensionItem *xExtensionItem = [[XExtensionItem alloc] initWithExtensionItem:extensionItem];
         
-        NSString *title = xExtensionItem.title ?: @"未命名";
-        NSString *contentText = xExtensionItem.attributedContentText.string ?: @"";
-        
-        NSLog(@"Received item:");
-        NSLog(@"  Title: %@", title);
-        NSLog(@"  Content: %@", contentText);
-        
-        // Create item dictionary
         NSMutableDictionary *item = [NSMutableDictionary dictionary];
-        item[@"title"] = title;
-        item[@"content"] = contentText;
+        item[@"title"] = @"未命名";
+        item[@"content"] = @"";
         item[@"timestamp"] = [NSDate date];
-        
-        // Process attachments
-        for (NSItemProvider *provider in xExtensionItem.attachments) {
-            if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypeURL]) {
-                [provider loadItemForTypeIdentifier:(NSString *)kUTTypeURL options:nil completionHandler:^(NSURL *url, NSError *error) {
-                    if (url) {
-                        NSLog(@"  URL: %@", url.absoluteString);
-                        item[@"type"] = @"url";
-                        item[@"content"] = url.absoluteString;
-                        if (!item[@"title"] || [item[@"title"] length] == 0) {
-                            item[@"title"] = url.absoluteString;
-                        }
-                    }
-                }];
-            }
-            
-            if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypeImage]) {
-                NSLog(@"  Has image attachment");
-                item[@"type"] = @"image";
-            }
-            
-            if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypePlainText]) {
-                [provider loadItemForTypeIdentifier:(NSString *)kUTTypePlainText options:nil completionHandler:^(NSString *text, NSError *error) {
-                    if (text) {
-                        NSLog(@"  Text: %@", text);
-                        item[@"type"] = @"text";
-                        item[@"content"] = text;
-                    }
-                }];
-            }
-        }
-        
-        if (!item[@"type"]) {
-            item[@"type"] = @"text";
-        }
+        item[@"type"] = @"text";
+        item[@"xExtensionItem"] = xExtensionItem; // 保存以便后续处理
         
         [self.receivedItems addObject:item];
     }
@@ -74,14 +33,22 @@
 }
 
 - (void)didSelectPost {
-    // Save shared items
-    [self saveSharedItems];
+    // 获取用户输入的文本
+    NSString *userComment = self.contentText;
     
-    // Open main app
-    [self openMainApp];
+    // 为所有 item 添加用户输入
+    for (NSMutableDictionary *item in self.receivedItems) {
+        if (userComment && userComment.length > 0) {
+            item[@"title"] = userComment;
+        }
+    }
     
-    // Complete extension
-    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+    // 异步处理所有附件后再保存
+    [self processAttachmentsWithCompletion:^{
+        [self saveSharedItems];
+        [self openMainApp];
+        [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+    }];
 }
 
 - (void)saveSharedItems {
@@ -117,6 +84,66 @@
 
 - (NSArray *)configurationItems {
     return @[];
+}
+
+- (void)processAttachmentsWithCompletion:(void (^)(void))completion {
+    dispatch_group_t group = dispatch_group_create();
+    
+    for (NSMutableDictionary *item in self.receivedItems) {
+        XExtensionItem *xExtensionItem = item[@"xExtensionItem"];
+        if (!xExtensionItem) continue;
+        
+        for (NSItemProvider *provider in xExtensionItem.attachments) {
+            // 处理图片
+            if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypeImage]) {
+                dispatch_group_enter(group);
+                [provider loadItemForTypeIdentifier:(NSString *)kUTTypeImage options:nil completionHandler:^(UIImage *image, NSError *error) {
+                    if (image) {
+                        NSLog(@"📷 Loaded image: %@", NSStringFromCGSize(image.size));
+                        item[@"type"] = @"image";
+                        // 保存图片信息（可以保存尺寸等元数据）
+                        item[@"content"] = [NSString stringWithFormat:@"图片 %.0fx%.0f", image.size.width, image.size.height];
+                    }
+                    dispatch_group_leave(group);
+                }];
+            }
+            // 处理 URL
+            else if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypeURL]) {
+                dispatch_group_enter(group);
+                [provider loadItemForTypeIdentifier:(NSString *)kUTTypeURL options:nil completionHandler:^(NSURL *url, NSError *error) {
+                    if (url) {
+                        NSLog(@"🔗 Loaded URL: %@", url.absoluteString);
+                        item[@"type"] = @"url";
+                        item[@"content"] = url.absoluteString;
+                    }
+                    dispatch_group_leave(group);
+                }];
+            }
+            // 处理纯文本
+            else if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypePlainText]) {
+                dispatch_group_enter(group);
+                [provider loadItemForTypeIdentifier:(NSString *)kUTTypePlainText options:nil completionHandler:^(NSString *text, NSError *error) {
+                    if (text) {
+                        NSLog(@"📝 Loaded text: %@", text);
+                        item[@"type"] = @"text";
+                        item[@"content"] = text;
+                    }
+                    dispatch_group_leave(group);
+                }];
+            }
+        }
+        
+        // 清理临时数据
+        [item removeObjectForKey:@"xExtensionItem"];
+    }
+    
+    // 所有异步操作完成后调用 completion
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        NSLog(@"✅ All attachments processed");
+        if (completion) {
+            completion();
+        }
+    });
 }
 
 @end

@@ -43,4 +43,17 @@
     // Called as the scene transitions from the foreground to the background.
 }
 
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts {
+    // 处理从 Extension 打开应用的 URL Scheme
+    for (UIOpenURLContext *context in URLContexts) {
+        NSURL *url = context.URL;
+        NSLog(@"📱 App opened with URL: %@", url);
+        
+        if ([url.scheme isEqualToString:@"transany"]) {
+            // 发送通知，触发主界面刷新
+            [[NSNotificationCenter defaultCenter] postNotificationName:UIApplicationWillEnterForegroundNotification object:nil];
+        }
+    }
+}
+
 @end

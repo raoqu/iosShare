@@ -78,6 +78,14 @@ struct MainView: View {
             }
         }
         .navigationViewStyle(.stack)
+        .onAppear {
+            // 视图出现时刷新数据
+            manager.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // 应用从后台回到前台时刷新数据
+            manager.refresh()
+        }
     }
     
     // 空状态视图
