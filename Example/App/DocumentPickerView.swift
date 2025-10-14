@@ -40,11 +40,18 @@ struct DocumentPickerView: UIViewControllerRepresentable {
         }
         
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            parent.completion(urls)
+            // 先关闭选择器，然后处理文件
+            parent.dismiss()
+            
+            // 延迟处理，确保选择器已关闭
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.parent.completion(urls)
+            }
         }
         
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             // 用户取消
+            parent.dismiss()
         }
     }
 }

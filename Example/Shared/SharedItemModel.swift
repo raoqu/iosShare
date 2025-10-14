@@ -38,7 +38,12 @@ final class SharedStorageManager: @unchecked Sendable {
     private let sharedItemsKey = "SharedItemsV2"  // 新版本
     private let filesDirectoryName = "SharedFiles"
     
-    private init() {}
+    // 缓存 UserDefaults 实例，避免真机上重复创建导致错误
+    private let _sharedDefaults: UserDefaults?
+    
+    private init() {
+        self._sharedDefaults = UserDefaults(suiteName: appGroupIdentifier)
+    }
     
     // MARK: - 文件管理
     
@@ -99,9 +104,9 @@ final class SharedStorageManager: @unchecked Sendable {
     
     // MARK: - 数据存储
     
-    /// 获取共享的 UserDefaults
+    /// 获取共享的 UserDefaults（使用缓存实例）
     var sharedDefaults: UserDefaults? {
-        return UserDefaults(suiteName: appGroupIdentifier)
+        return _sharedDefaults
     }
     
     /// 保存单个项目

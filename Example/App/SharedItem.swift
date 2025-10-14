@@ -6,9 +6,8 @@ private enum AppGroupConfig {
     static let identifier = "group.cc.raoqu.transany"
     static let sharedItemsKey = "SharedItems"
     
-    static var sharedDefaults: UserDefaults? {
-        return UserDefaults(suiteName: identifier)
-    }
+    // 缓存 UserDefaults 实例，避免真机上重复创建导致错误
+    nonisolated(unsafe) static let sharedDefaults: UserDefaults? = UserDefaults(suiteName: identifier)
 }
 
 /// 分享内容项模型

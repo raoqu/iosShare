@@ -165,7 +165,7 @@ struct MainView: View {
                         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                 )
         }
-        .padding(.bottom, 30)
+        .padding(.bottom, 10)
     }
     
     // 空状态视图
@@ -277,13 +277,47 @@ struct MainView: View {
     
     // 保存文档
     private func saveDocuments(_ urls: [URL]) {
+        var successCount = 0
+        var failCount = 0
+        
+        print("📄 Processing \(urls.count) file(s)...")
+        
         for url in urls {
-            guard url.startAccessingSecurityScopedResource() else { continue }
-            defer { url.stopAccessingSecurityScopedResource() }
-            
-            guard let data = try? Data(contentsOf: url) else { continue }
-            
             let filename = url.lastPathComponent
+            print("📄 Processing file: \(filename)")
+            print("📍 File URL: \(url.path)")
+            
+            // DocumentPickerViewController with asCopy:true 会将文件复制到临时目录
+            // 这些文件不需要安全范围资源访问
+            // 只在必要时尝试访问安全范围资源
+            let needsSecurityScope = !url.path.contains("tmp") && !url.path.contains("Inbox")
+            var didStartAccessing = false
+            
+            if needsSecurityScope {
+                didStartAccessing = url.startAccessingSecurityScopedResource()
+                if didStartAccessing {
+                    print("🔐 Started accessing security-scoped resource")
+                } else {
+                    print("⚠️ Security-scoped access not available (may not be needed)")
+                }
+            } else {
+                print("ℹ️ File is in temp/inbox, no security scoping needed")
+            }
+            
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                    print("🔓 Stopped accessing security-scoped resource")
+                }
+            }
+            
+            // 读取文件数据
+            guard let data = try? Data(contentsOf: url) else {
+                print("❌ Failed to read file data: \(filename)")
+                failCount += 1
+                continue
+            }
+            
             let fileExtension = url.pathExtension.lowercased()
             
             let metadata: [String: String] = [
@@ -338,10 +372,17 @@ struct MainView: View {
             
             if let item = item {
                 SharedStorageManager.shared.saveItem(item)
-                print("✅ Saved document: \(filename)")
+                print("✅ Saved document: \(filename) (\(data.count) bytes)")
+                successCount += 1
+            } else {
+                print("❌ Failed to create item for: \(filename)")
+                failCount += 1
             }
         }
         
+        print("📊 Summary: \(successCount) succeeded, \(failCount) failed")
+        
+        // 刷新界面
         withAnimation {
             manager.refresh()
         }
