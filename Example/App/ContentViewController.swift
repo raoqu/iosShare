@@ -114,7 +114,7 @@ class ContentViewController: UIViewController {
         
         // Add referrer information
         source.referrer = XExtensionItemReferrer(
-            appNameFromBundle: Bundle.main,
+            appNameFrom: Bundle.main,
             appStoreID: "12345",
             googlePlayID: "12345",
             webURL: URL(string: "http://myservice.com/content"),

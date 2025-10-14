@@ -1,7 +1,6 @@
 #import "SceneDelegate.h"
-#import "ViewController.h"
-// TODO: Uncomment after completing Swift setup
-// #import "XExtensionItemExample-Swift.h"
+#import <SwiftUI/SwiftUI.h>
+#import "App-Swift.h"
 
 @implementation SceneDelegate
 
@@ -13,14 +12,10 @@
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     
-    // TODO: Replace with ContentViewController after completing Swift setup
-    // ContentViewController *contentViewController = [[ContentViewController alloc] init];
-    // UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:contentViewController];
+    // 使用 SwiftUI 主视图（通过帮助类创建）
+    UIViewController *mainViewController = [SceneDelegateHelper createMainViewController];
     
-    // Temporary: Using old ViewController until Swift setup is complete
-    UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:[[ViewController alloc] init]];
-    
-    self.window.rootViewController = navigationController;
+    self.window.rootViewController = mainViewController;
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
 }
