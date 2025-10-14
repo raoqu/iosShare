@@ -11,6 +11,8 @@
 		601977202E9E401200328FB6 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6019771F2E9E401200328FB6 /* ShareViewController.swift */; };
 		601977212E9E401200328FB6 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6019771E2E9E401200328FB6 /* ShareView.swift */; };
 		60199A042E9E18C800114E60 /* Image.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60199A032E9E18C800114E60 /* Image.xcassets */; };
+		60209A5F2E9E635100647922 /* FileHandlerSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60209A5D2E9E635100647922 /* FileHandlerSettings.swift */; };
+		60209A602E9E635100647922 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60209A5E2E9E635100647922 /* SettingsView.swift */; };
 		6028E2532E9E0A6F00C4C95C /* SceneDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 6028E2522E9E0A6F00C4C95C /* SceneDelegate.m */; };
 		6087123D2E9E165F009B6FDC /* ContentItemCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608712382E9E165F009B6FDC /* ContentItemCell.swift */; };
 		6087123E2E9E165F009B6FDC /* SharedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6087123B2E9E165F009B6FDC /* SharedItem.swift */; };
@@ -64,6 +66,8 @@
 		6019771E2E9E401200328FB6 /* ShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareView.swift; sourceTree = "<group>"; };
 		6019771F2E9E401200328FB6 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		60199A032E9E18C800114E60 /* Image.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Image.xcassets; sourceTree = "<group>"; };
+		60209A5D2E9E635100647922 /* FileHandlerSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileHandlerSettings.swift; sourceTree = "<group>"; };
+		60209A5E2E9E635100647922 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6028E2512E9E0A6F00C4C95C /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
 		6028E2522E9E0A6F00C4C95C /* SceneDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SceneDelegate.m; sourceTree = "<group>"; };
 		6036E5AE2E9E12E2002661FE /* App-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -150,6 +154,8 @@
 		93E53C481B04E40300A74760 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				60209A5D2E9E635100647922 /* FileHandlerSettings.swift */,
+				60209A5E2E9E635100647922 /* SettingsView.swift */,
 				60EBAFB32E9E4B6C00DFFCBC /* DocumentPickerView.swift */,
 				60EBAFB42E9E4B6C00DFFCBC /* PhotoPickerView.swift */,
 				60E6FC7B2E9E38D400459FFD /* SceneDelegateHelper.swift */,
@@ -403,6 +409,8 @@
 				93E53C4C1B04E40300A74760 /* main.m in Sources */,
 				60EBAFB52E9E4B6C00DFFCBC /* DocumentPickerView.swift in Sources */,
 				60EBAFB62E9E4B6C00DFFCBC /* PhotoPickerView.swift in Sources */,
+				60209A5F2E9E635100647922 /* FileHandlerSettings.swift in Sources */,
+				60209A602E9E635100647922 /* SettingsView.swift in Sources */,
 				6028E2532E9E0A6F00C4C95C /* SceneDelegate.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

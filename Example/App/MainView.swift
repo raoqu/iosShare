@@ -9,6 +9,7 @@ struct MainView: View {
     @State private var showingTextInput = false
     @State private var showingPhotoPicker = false
     @State private var showingDocumentPicker = false
+    @State private var showingSettings = false
     @State private var inputText = ""
     
     var body: some View {
@@ -45,6 +46,14 @@ struct MainView: View {
                             Spacer()
                             if !manager.items.isEmpty {
                                 Menu {
+                                    Button(action: {
+                                        showingSettings = true
+                                    }) {
+                                        Label("设置", systemImage: "gear")
+                                    }
+                                    
+                                    Divider()
+                                    
                                     Button(action: {
                                         showingDeleteAlert = true
                                     }) {
@@ -137,6 +146,10 @@ struct MainView: View {
                 DocumentPickerView { urls in
                     saveDocuments(urls)
                 }
+            }
+            // 设置视图
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
         }
         .navigationViewStyle(.stack)
@@ -320,12 +333,33 @@ struct MainView: View {
             
             let fileExtension = url.pathExtension.lowercased()
             
-            let metadata: [String: String] = [
+            var metadata: [String: String] = [
                 "source": "app_picker",
                 "filename": filename,
                 "size": "\(data.count)",
                 "extension": fileExtension
             ]
+            
+            // 检查是否有配置的处理规则
+            let settingsManager = FileHandlerSettingsManager.shared
+            if let rule = settingsManager.getRule(for: fileExtension) {
+                print("🌐 Found handler rule for .\(fileExtension): [\(rule.typeName)] \(rule.remoteURL)")
+                
+                // 发送到远程服务器处理
+                Task {
+                    await sendToRemoteHandler(
+                        rule: rule,
+                        filename: filename,
+                        fileData: data,
+                        fileExtension: fileExtension
+                    )
+                }
+                
+                // 添加处理标记到元数据
+                metadata["handler_url"] = rule.remoteURL
+                metadata["handler_type"] = rule.typeName
+                metadata["handler_status"] = "pending"
+            }
             
             var item: SharedItemModel?
             
@@ -385,6 +419,65 @@ struct MainView: View {
         // 刷新界面
         withAnimation {
             manager.refresh()
+        }
+    }
+    
+    // 发送文件到远程处理器
+    private func sendToRemoteHandler(rule: FileHandlerRule, filename: String, fileData: Data, fileExtension: String) async {
+        print("🚀 Sending \(filename) to remote handler: [\(rule.typeName)] \(rule.remoteURL)")
+        
+        guard let requestURL = URL(string: rule.remoteURL) else {
+            print("❌ Invalid handler URL: \(rule.remoteURL)")
+            return
+        }
+        
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        
+        // 创建 multipart/form-data 请求
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        
+        // 添加文件数据（使用规则中的文件参数名）
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"\(rule.fileParameterName)\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // 添加扩展名参数
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"extension\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(fileExtension)\r\n".data(using: .utf8)!)
+        
+        // 添加自定义参数
+        for (key, value) in rule.customParameters {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+            print("📤 Custom parameter: \(key) = \(value)")
+        }
+        
+        // 结束标记
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 200 {
+                    print("✅ Successfully sent \(filename) to remote handler")
+                    print("📥 Response: \(String(data: data, encoding: .utf8) ?? "No response body")")
+                } else {
+                    print("⚠️ Remote handler returned status code: \(httpResponse.statusCode)")
+                }
+            }
+        } catch {
+            print("❌ Failed to send to remote handler: \(error.localizedDescription)")
         }
     }
 }
