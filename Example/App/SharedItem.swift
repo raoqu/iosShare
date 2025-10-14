@@ -124,15 +124,20 @@ class SharedItemsManager: ObservableObject {
     }
     
     private func loadItems() async {
+        print("🔄 Loading shared items from UserDefaults...")
+        
         // Try to load encoded SharedItem array first
         if let data = defaults.data(forKey: userDefaultsKey),
            let decoded = try? JSONDecoder().decode([SharedItem].self, from: data) {
             items = decoded
+            print("✅ Loaded \(items.count) items (JSON format)")
             return
         }
         
         // Try to load dictionary array from ShareViewController
         if let dictArray = defaults.array(forKey: userDefaultsKey) as? [[String: Any]] {
+            print("📋 Found \(dictArray.count) items (Dictionary format)")
+            
             items = dictArray.compactMap { dict -> SharedItem? in
                 guard let title = dict["title"] as? String,
                       let content = dict["content"] as? String,
@@ -161,14 +166,16 @@ class SharedItemsManager: ObservableObject {
                 )
             }
             
-            // Save in the new format
+            print("✅ Converted to \(items.count) SharedItem objects")
+            
+            // Save in the new format for better performance next time
             saveItems()
             return
         }
         
-        // If no data, don't create sample data on first launch
-        // Keep empty list for better performance
+        // If no data, keep empty list
         items = []
+        print("ℹ️ No items found, starting with empty list")
     }
     
     private func createSampleData() -> [SharedItem] {

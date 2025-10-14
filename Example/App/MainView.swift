@@ -43,6 +43,15 @@ struct MainView: View {
                     .ignoresSafeArea()
             )
             .toolbar {
+                // 显示项目数量
+                ToolbarItem(placement: .principal) {
+                    if !manager.items.isEmpty {
+                        Text("\(manager.items.count) 项内容")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button(action: {
