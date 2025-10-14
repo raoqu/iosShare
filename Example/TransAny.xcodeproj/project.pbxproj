@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2040AB50B75335A8D63DB440 /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DD2F543986B36544C69E5E0 /* Pods_App.framework */; };
+		60199A042E9E18C800114E60 /* Image.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60199A032E9E18C800114E60 /* Image.xcassets */; };
 		6028E2532E9E0A6F00C4C95C /* SceneDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 6028E2522E9E0A6F00C4C95C /* SceneDelegate.m */; };
 		605549CE2E9E172700409E48 /* SceneDelegateHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605549CD2E9E172700409E48 /* SceneDelegateHelper.swift */; };
 		6087123D2E9E165F009B6FDC /* ContentItemCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608712382E9E165F009B6FDC /* ContentItemCell.swift */; };
@@ -57,6 +58,7 @@
 		1DD2F543986B36544C69E5E0 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2442CB3A871ACD6A1871A3B4 /* Pods-Extension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Extension.release.xcconfig"; path = "Target Support Files/Pods-Extension/Pods-Extension.release.xcconfig"; sourceTree = "<group>"; };
 		3CBEF55FBA87977FA0221D65 /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		60199A032E9E18C800114E60 /* Image.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Image.xcassets; sourceTree = "<group>"; };
 		6028E2512E9E0A6F00C4C95C /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
 		6028E2522E9E0A6F00C4C95C /* SceneDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SceneDelegate.m; sourceTree = "<group>"; };
 		6036E5AE2E9E12E2002661FE /* App-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -181,6 +183,7 @@
 				93E53C791B04EC7F00A74760 /* ShareViewController.m */,
 				93E53C7B1B04EC7F00A74760 /* MainInterface.storyboard */,
 				93E53C761B04EC7F00A74760 /* Supporting Files */,
+				60199A032E9E18C800114E60 /* Image.xcassets */,
 			);
 			path = Extension;
 			sourceTree = "<group>";
@@ -303,6 +306,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				93E53C7C1B04EC7F00A74760 /* MainInterface.storyboard in Resources */,
+				60199A042E9E18C800114E60 /* Image.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
