@@ -1,9 +1,9 @@
 PODS:
-  - XExtensionItem (0.9.4):
-    - XExtensionItem/Core (= 0.9.4)
-    - XExtensionItem/Tumblr (= 0.9.4)
-  - XExtensionItem/Core (0.9.4)
-  - XExtensionItem/Tumblr (0.9.4):
+  - XExtensionItem (0.9.5):
+    - XExtensionItem/Core (= 0.9.5)
+    - XExtensionItem/Tumblr (= 0.9.5)
+  - XExtensionItem/Core (0.9.5)
+  - XExtensionItem/Tumblr (0.9.5):
     - XExtensionItem/Core
 
 DEPENDENCIES:
@@ -14,8 +14,8 @@ EXTERNAL SOURCES:
     :path: "../"
 
 SPEC CHECKSUMS:
-  XExtensionItem: c4ad8e29c24cc659f2d0809eab4a323bbb71b85a
+  XExtensionItem: 74ef6cf929f0e8a49762d402d6a82923245ed95f
 
 PODFILE CHECKSUM: 554caad78239ef599f12ad25adf85ca12a1ec0fd
 
-COCOAPODS: 1.15.2
+COCOAPODS: 1.16.2
