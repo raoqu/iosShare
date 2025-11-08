@@ -246,10 +246,40 @@ struct MainView: View {
     private func saveText(_ text: String) {
         guard !text.isEmpty else { return }
         
+        var metadata: [String: String] = [
+            "source": "app_input",
+            "length": "\(text.count)"
+        ]
+        
+        // 检测是否为 URL
+        let isURL = text.starts(with: "http://") || text.starts(with: "https://")
+        
+        if isURL {
+            // 检查是否有启用的 URL 处理规则
+            let settingsManager = FileHandlerSettingsManager.shared
+            if let rule = settingsManager.getURLRule() {
+                print("🌐 Found URL handler rule: [\(rule.typeName)] \(rule.remoteURL)")
+                
+                // 发送 URL 到远程处理器
+                Task {
+                    await sendURLToRemoteHandler(
+                        rule: rule,
+                        urlString: text
+                    )
+                }
+                
+                // 添加处理标记到元数据
+                metadata["handler_url"] = rule.remoteURL
+                metadata["handler_type"] = rule.typeName
+                metadata["handler_status"] = "pending"
+                metadata["is_url"] = "true"
+            }
+        }
+        
         let item = SharedItemModel.createTextItem(
             title: String(text.prefix(30)),
             text: text,
-            metadata: ["source": "app_input", "length": "\(text.count)"]
+            metadata: metadata
         )
         
         SharedStorageManager.shared.saveItem(item)
@@ -480,12 +510,73 @@ struct MainView: View {
             print("❌ Failed to send to remote handler: \(error.localizedDescription)")
         }
     }
+    
+    // 发送 URL 到远程处理器（不上传文件）
+    private func sendURLToRemoteHandler(rule: FileHandlerRule, urlString: String) async {
+        print("🚀 Sending URL to remote handler: [\(rule.typeName)] \(rule.remoteURL)")
+        print("🔗 URL to process: \(urlString)")
+        
+        guard let requestURL = URL(string: rule.remoteURL) else {
+            print("❌ Invalid handler URL: \(rule.remoteURL)")
+            return
+        }
+        
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        
+        // 创建 application/x-www-form-urlencoded 请求
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        var parameters: [String] = []
+        
+        // 添加 URL 参数
+        if let encodedURL = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            parameters.append("url=\(encodedURL)")
+        }
+        
+        // 添加自定义参数
+        for (key, value) in rule.customParameters {
+            if let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let encodedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                parameters.append("\(encodedKey)=\(encodedValue)")
+                print("📤 Custom parameter: \(key) = \(value)")
+            }
+        }
+        
+        let bodyString = parameters.joined(separator: "&")
+        request.httpBody = bodyString.data(using: .utf8)
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 200 {
+                    print("✅ Successfully sent URL to remote handler")
+                    print("📥 Response: \(String(data: data, encoding: .utf8) ?? "No response body")")
+                } else {
+                    print("⚠️ Remote handler returned status code: \(httpResponse.statusCode)")
+                }
+            }
+        } catch {
+            print("❌ Failed to send to remote handler: \(error.localizedDescription)")
+        }
+    }
 }
 
 /// 详情视图
 struct ItemDetailView: View {
     let item: SharedItem
     @Environment(\.dismiss) var dismiss
+    @StateObject private var manager = SharedItemsManager.shared
+    
+    @State private var isEditing = false
+    @State private var editedTitle: String
+    @FocusState private var isTitleFocused: Bool
+    
+    init(item: SharedItem) {
+        self.item = item
+        _editedTitle = State(initialValue: item.title)
+    }
     
     var body: some View {
         NavigationView {
@@ -509,12 +600,32 @@ struct ItemDetailView: View {
                     
                     // 标题
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("标题")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(item.title)
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                        HStack {
+                            Text("标题")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
+                            if isEditing {
+                                Button("保存") {
+                                    saveTitle()
+                                }
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                                .disabled(editedTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                        }
+                        
+                        if isEditing {
+                            TextField("标题", text: $editedTitle)
+                                .font(.title3.weight(.semibold))
+                                .textFieldStyle(.roundedBorder)
+                                .focused($isTitleFocused)
+                        } else {
+                            Text(item.title)
+                                .font(.title3.weight(.semibold))
+                        }
                     }
                     
                     Divider()
@@ -535,13 +646,78 @@ struct ItemDetailView: View {
             .navigationTitle("详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if isEditing {
+                        Button("取消") {
+                            cancelEditing()
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        dismiss()
+                    if isEditing {
+                        Button("完成") {
+                            if saveTitle() {
+                                dismiss()
+                            }
+                        }
+                        .font(.body.weight(.semibold))
+                    } else {
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                startEditing()
+                            }) {
+                                Image(systemName: "pencil")
+                            }
+                            
+                            Button("完成") {
+                                dismiss()
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+    
+    private func startEditing() {
+        isEditing = true
+        editedTitle = item.title
+        isTitleFocused = true
+    }
+    
+    private func cancelEditing() {
+        isEditing = false
+        editedTitle = item.title
+        isTitleFocused = false
+    }
+    
+    @discardableResult
+    private func saveTitle() -> Bool {
+        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespaces)
+        
+        guard !trimmedTitle.isEmpty else {
+            return false
+        }
+        
+        // 如果标题没有变化，直接退出编辑
+        if trimmedTitle == item.title {
+            isEditing = false
+            isTitleFocused = false
+            return true
+        }
+        
+        // 更新存储
+        SharedStorageManager.shared.updateItemTitle(id: item.id.uuidString, newTitle: trimmedTitle)
+        
+        // 刷新界面
+        manager.refresh()
+        
+        isEditing = false
+        isTitleFocused = false
+        
+        print("✅ Updated title to: \(trimmedTitle)")
+        return true
     }
 }
 

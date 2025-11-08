@@ -115,13 +115,30 @@ struct FileHandlerRuleRow: View {
                 
                 // 规则信息
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(rule.typeName)
-                        .font(.headline)
-                        .foregroundColor(rule.isEnabled ? .primary : .secondary)
+                    HStack {
+                        Text(rule.typeName)
+                            .font(.headline)
+                            .foregroundColor(rule.isEnabled ? .primary : .secondary)
+                        
+                        // 显示规则类型徽章
+                        Text(rule.ruleType == .url ? "URL" : "文件")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(rule.ruleType == .url ? Color.orange.opacity(0.2) : Color.blue.opacity(0.2))
+                            .foregroundColor(rule.ruleType == .url ? .orange : .blue)
+                            .cornerRadius(4)
+                    }
                     
-                    Text(rule.fileExtensions.map { ".\($0)" }.joined(separator: ", "))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if rule.ruleType == .file && !rule.fileExtensions.isEmpty {
+                        Text(rule.fileExtensions.map { ".\($0)" }.joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if rule.ruleType == .url {
+                        Text("适用于所有 URL")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                     
                     Text(rule.remoteURL)
                         .font(.caption2)
@@ -157,6 +174,7 @@ struct FileHandlerRuleEditView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var typeName: String
+    @State private var ruleType: HandlerRuleType
     @State private var extensionsText: String  // 逗号分隔的扩展名
     @State private var remoteURL: String
     @State private var fileParameterName: String
@@ -172,6 +190,7 @@ struct FileHandlerRuleEditView: View {
         self.onSave = onSave
         
         _typeName = State(initialValue: rule?.typeName ?? "")
+        _ruleType = State(initialValue: rule?.ruleType ?? .file)
         _extensionsText = State(initialValue: rule?.fileExtensions.joined(separator: ",") ?? "")
         _remoteURL = State(initialValue: rule?.remoteURL ?? "")
         _fileParameterName = State(initialValue: rule?.fileParameterName ?? "file")
@@ -186,28 +205,40 @@ struct FileHandlerRuleEditView: View {
                 Section {
                     TextField("类型名称", text: $typeName)
                         .autocapitalization(.allCharacters)
+                    
+                    Picker("规则类型", selection: $ruleType) {
+                        Text("文件上传").tag(HandlerRuleType.file)
+                        Text("URL 处理").tag(HandlerRuleType.url)
+                    }
+                    .pickerStyle(.segmented)
                 } header: {
                     Text("类型")
                 } footer: {
-                    Text("例如：EXCEL, PDF, WORD")
+                    if ruleType == .file {
+                        Text("文件上传：根据文件扩展名处理，上传文件到远程服务器")
+                    } else {
+                        Text("URL 处理：处理所有 URL 类型内容，只发送 URL 字符串，不上传文件")
+                    }
                 }
                 
-                // 扩展名
-                Section {
-                    TextField("扩展名", text: $extensionsText)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .onChange(of: extensionsText) { newValue in
-                            // 自动移除点号和空格，转小写
-                            extensionsText = newValue
-                                .replacingOccurrences(of: ".", with: "")
-                                .replacingOccurrences(of: " ", with: "")
-                                .lowercased()
-                        }
-                } header: {
-                    Text("扩展名")
-                } footer: {
-                    Text("逗号分隔，不包含点号。例如：xls,xlsx")
+                // 扩展名（仅文件类型）
+                if ruleType == .file {
+                    Section {
+                        TextField("扩展名", text: $extensionsText)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .onChange(of: extensionsText) { newValue in
+                                // 自动移除点号和空格，转小写
+                                extensionsText = newValue
+                                    .replacingOccurrences(of: ".", with: "")
+                                    .replacingOccurrences(of: " ", with: "")
+                                    .lowercased()
+                            }
+                    } header: {
+                        Text("扩展名")
+                    } footer: {
+                        Text("逗号分隔，不包含点号。例如：xls,xlsx")
+                    }
                 }
                 
                 // 处理 URL
@@ -224,15 +255,17 @@ struct FileHandlerRuleEditView: View {
                 
                 // 参数配置
                 Section {
-                    // 文件参数名
-                    HStack {
-                        Text("文件参数名")
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        TextField("参数名", text: $fileParameterName)
-                            .multilineTextAlignment(.trailing)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
+                    // 文件参数名（仅文件类型）
+                    if ruleType == .file {
+                        HStack {
+                            Text("文件参数名")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            TextField("参数名", text: $fileParameterName)
+                                .multilineTextAlignment(.trailing)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                        }
                     }
                     
                     // 自定义参数列表
@@ -277,7 +310,11 @@ struct FileHandlerRuleEditView: View {
                 } header: {
                     Text("参数")
                 } footer: {
-                    Text("文件参数名用于上传文件，自定义参数会一同发送到服务器")
+                    if ruleType == .file {
+                        Text("文件参数名用于上传文件，自定义参数会一同发送到服务器")
+                    } else {
+                        Text("自定义参数会随 URL 一起发送到服务器")
+                    }
                 }
                 
                 // 启用规则
@@ -322,15 +359,24 @@ struct FileHandlerRuleEditView: View {
     }
     
     private var isValid: Bool {
-        !typeName.isEmpty && !extensionsText.isEmpty && !remoteURL.isEmpty && remoteURL.hasPrefix("http")
+        if ruleType == .file {
+            return !typeName.isEmpty && !extensionsText.isEmpty && !remoteURL.isEmpty && remoteURL.hasPrefix("http")
+        } else {
+            return !typeName.isEmpty && !remoteURL.isEmpty && remoteURL.hasPrefix("http")
+        }
     }
     
     private func saveRule() {
-        // 解析扩展名
-        let extensions = extensionsText
-            .split(separator: ",")
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        // 解析扩展名（仅文件类型）
+        let extensions: [String]
+        if ruleType == .file {
+            extensions = extensionsText
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        } else {
+            extensions = []
+        }
         
         // 转换参数为字典
         let params = Dictionary(uniqueKeysWithValues: customParameters.map { ($0.key, $0.value) })
@@ -338,9 +384,10 @@ struct FileHandlerRuleEditView: View {
         let newRule = FileHandlerRule(
             id: rule?.id ?? UUID(),
             typeName: typeName,
+            ruleType: ruleType,
             fileExtensions: extensions,
             remoteURL: remoteURL,
-            fileParameterName: fileParameterName,
+            fileParameterName: ruleType == .file ? fileParameterName : "",
             customParameters: params,
             isEnabled: isEnabled
         )

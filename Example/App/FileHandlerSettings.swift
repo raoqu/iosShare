@@ -1,20 +1,28 @@
 import Foundation
 import SwiftUI
 
+/// 处理规则类型
+enum HandlerRuleType: String, Codable {
+    case file       // 需要上传文件
+    case url        // 只发送 URL，不上传文件
+}
+
 /// 文件处理规则
 struct FileHandlerRule: Identifiable, Codable {
     let id: UUID
-    var typeName: String            // 类型名称，如 "EXCEL", "PDF"
-    var fileExtensions: [String]    // 文件扩展名列表，如 ["xls", "xlsx"]
+    var typeName: String            // 类型名称，如 "EXCEL", "PDF", "URL"
+    var ruleType: HandlerRuleType   // 规则类型：文件上传或URL处理
+    var fileExtensions: [String]    // 文件扩展名列表，如 ["xls", "xlsx"]（URL类型时可为空）
     var remoteURL: String           // 远程处理 URL
-    var fileParameterName: String   // 文件参数名称，默认 "file"
+    var fileParameterName: String   // 文件参数名称，默认 "file"（仅文件类型使用）
     var customParameters: [String: String]  // 自定义参数键值对
     var isEnabled: Bool             // 是否启用
     
     init(
         id: UUID = UUID(),
         typeName: String,
-        fileExtensions: [String],
+        ruleType: HandlerRuleType = .file,
+        fileExtensions: [String] = [],
         remoteURL: String,
         fileParameterName: String = "file",
         customParameters: [String: String] = [:],
@@ -22,6 +30,7 @@ struct FileHandlerRule: Identifiable, Codable {
     ) {
         self.id = id
         self.typeName = typeName
+        self.ruleType = ruleType
         self.fileExtensions = fileExtensions.map { $0.lowercased() }
         self.remoteURL = remoteURL
         self.fileParameterName = fileParameterName
@@ -33,6 +42,7 @@ struct FileHandlerRule: Identifiable, Codable {
     init(id: UUID = UUID(), fileExtension: String, remoteURL: String, isEnabled: Bool = true) {
         self.id = id
         self.typeName = fileExtension.uppercased()
+        self.ruleType = .file
         self.fileExtensions = [fileExtension.lowercased()]
         self.remoteURL = remoteURL
         self.fileParameterName = "file"
@@ -123,11 +133,26 @@ class FileHandlerSettingsManager: ObservableObject {
         return rules.contains(where: { $0.fileExtensions.contains(ext) && $0.isEnabled })
     }
     
+    /// 获取 URL 处理规则（如果启用）
+    func getURLRule() -> FileHandlerRule? {
+        return rules.first(where: { $0.ruleType == .url && $0.isEnabled })
+    }
+    
     /// 创建默认规则
     private func createDefaultRules() -> [FileHandlerRule] {
         return [
             FileHandlerRule(
+                typeName: "URL",
+                ruleType: .url,
+                fileExtensions: [],
+                remoteURL: "https://api.example.com/process/url",
+                fileParameterName: "",  // URL 类型不需要文件参数
+                customParameters: ["action": "shorten"],
+                isEnabled: false
+            ),
+            FileHandlerRule(
                 typeName: "PDF",
+                ruleType: .file,
                 fileExtensions: ["pdf"],
                 remoteURL: "https://api.example.com/convert/pdf",
                 fileParameterName: "file",
@@ -136,6 +161,7 @@ class FileHandlerSettingsManager: ObservableObject {
             ),
             FileHandlerRule(
                 typeName: "WORD",
+                ruleType: .file,
                 fileExtensions: ["doc", "docx"],
                 remoteURL: "https://api.example.com/convert/word",
                 fileParameterName: "file",
@@ -144,6 +170,7 @@ class FileHandlerSettingsManager: ObservableObject {
             ),
             FileHandlerRule(
                 typeName: "EXCEL",
+                ruleType: .file,
                 fileExtensions: ["xls", "xlsx"],
                 remoteURL: "https://api.example.com/convert/excel",
                 fileParameterName: "file",

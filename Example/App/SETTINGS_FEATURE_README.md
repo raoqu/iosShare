@@ -124,6 +124,8 @@
 
 ## 远程处理 API 格式
 
+### 文件上传类型（ruleType: .file）
+
 发送到远程服务器的请求格式：
 
 **Method**: POST  
@@ -180,10 +182,36 @@ high
 --Boundary-...--
 ```
 
+### URL 处理类型（ruleType: .url）
+
+发送到远程服务器的请求格式：
+
+**Method**: POST  
+**Content-Type**: application/x-www-form-urlencoded
+
+**标准字段**:
+- `url`: URL 字符串（URL 编码）
+- `{customKey}`: 自定义参数（可配置多个键值对）
+
+**示例 - URL 短链接服务**:
+```http
+POST https://api.example.com/process/url
+Content-Type: application/x-www-form-urlencoded
+
+url=https%3A%2F%2Fgithub.com%2Ftopics%2Fswiftui&action=shorten
+```
+
+**特点**:
+- 不上传文件，只发送 URL 字符串
+- 使用 `application/x-www-form-urlencoded` 格式
+- 自动对参数进行 URL 编码
+- 适用于短链接生成、URL 分析、书签服务等场景
+
 ## 日志输出
 
-启用规则后，文件处理会输出详细日志：
+启用规则后，文件和URL处理会输出详细日志：
 
+### 文件处理日志：
 ```
 📄 Processing file: data.xlsx
 🌐 Found handler rule for .xlsx: [EXCEL] https://api.example.com/convert/excel
@@ -194,26 +222,48 @@ high
 📥 Response: {"status": "success", "id": "12345", "download_url": "..."}
 ```
 
+### URL 处理日志：
+```
+🌐 Found URL handler rule: [URL] https://api.example.com/process/url
+🚀 Sending URL to remote handler: [URL] https://api.example.com/process/url
+🔗 URL to process: https://github.com/topics/swiftui
+📤 Custom parameter: action = shorten
+✅ Successfully sent URL to remote handler
+📥 Response: {"short_url": "https://short.ly/abc123", "original": "https://github.com/topics/swiftui"}
+```
+
 ## 默认规则
 
 首次启动时会创建以下默认规则（禁用状态）：
 
-### 1. PDF
+### 1. URL
+- **类型**: URL
+- **规则类型**: URL处理（不上传文件）
+- **扩展名**: 无（适用于所有URL）
+- **URL**: `https://api.example.com/process/url`
+- **文件参数**: 无（URL类型不使用文件参数）
+- **自定义参数**: `action: shorten`
+- **说明**: 当用户输入URL文本时，自动发送到远程处理器，可用于短链接生成、URL分析等
+
+### 2. PDF
 - **类型**: PDF
+- **规则类型**: 文件上传
 - **扩展名**: pdf
 - **URL**: `https://api.example.com/convert/pdf`
 - **文件参数**: file
 - **自定义参数**: `format: pdf`
 
-### 2. WORD
+### 3. WORD
 - **类型**: WORD
+- **规则类型**: 文件上传
 - **扩展名**: doc, docx
 - **URL**: `https://api.example.com/convert/word`
 - **文件参数**: file
 - **自定义参数**: `target: pdf`
 
-### 3. EXCEL
+### 4. EXCEL
 - **类型**: EXCEL
+- **规则类型**: 文件上传
 - **扩展名**: xls, xlsx
 - **URL**: `https://api.example.com/convert/excel`
 - **文件参数**: file
