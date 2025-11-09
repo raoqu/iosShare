@@ -10,7 +10,6 @@ struct MainView: View {
     @State private var showingPhotoPicker = false
     @State private var showingDocumentPicker = false
     @State private var showingSettings = false
-    @State private var inputText = ""
     
     var body: some View {
         NavigationView {
@@ -122,18 +121,11 @@ struct MainView: View {
                 }
                 Button("取消", role: .cancel) { }
             }
-            // 文本输入对话框
-            .alert("输入文本", isPresented: $showingTextInput) {
-                TextField("请输入内容", text: $inputText)
-                Button("取消", role: .cancel) {
-                    inputText = ""
+            // 文本输入视图
+            .sheet(isPresented: $showingTextInput) {
+                TextInputView { title, content in
+                    saveText(title: title, content: content)
                 }
-                Button("保存") {
-                    saveText(inputText)
-                    inputText = ""
-                }
-            } message: {
-                Text("输入要保存的文本内容")
             }
             // 照片选择器
             .sheet(isPresented: $showingPhotoPicker) {
@@ -243,16 +235,16 @@ struct MainView: View {
     }
     
     // 保存文本
-    private func saveText(_ text: String) {
-        guard !text.isEmpty else { return }
+    private func saveText(title: String, content: String) {
+        guard !content.isEmpty else { return }
         
         var metadata: [String: String] = [
             "source": "app_input",
-            "length": "\(text.count)"
+            "length": "\(content.count)"
         ]
         
         // 检测是否为 URL
-        let isURL = text.starts(with: "http://") || text.starts(with: "https://")
+        let isURL = content.starts(with: "http://") || content.starts(with: "https://")
         
         if isURL {
             // 检查是否有启用的 URL 处理规则
@@ -264,7 +256,7 @@ struct MainView: View {
                 Task {
                     await sendURLToRemoteHandler(
                         rule: rule,
-                        urlString: text
+                        urlString: content
                     )
                 }
                 
@@ -277,8 +269,8 @@ struct MainView: View {
         }
         
         let item = SharedItemModel.createTextItem(
-            title: String(text.prefix(30)),
-            text: text,
+            title: title.isEmpty ? String(content.prefix(30)) : title,
+            text: content,
             metadata: metadata
         )
         
@@ -288,7 +280,7 @@ struct MainView: View {
             manager.refresh()
         }
         
-        print("✅ Saved text: \(text.prefix(50))...")
+        print("✅ Saved text: \(content.prefix(50))...")
     }
     
     // 保存照片
@@ -363,6 +355,10 @@ struct MainView: View {
             
             let fileExtension = url.pathExtension.lowercased()
             
+            // 使用不带扩展名的文件名作为标题
+            let fileNameWithoutExt = url.deletingPathExtension().lastPathComponent
+            let displayTitle = fileNameWithoutExt.isEmpty ? filename : fileNameWithoutExt
+            
             var metadata: [String: String] = [
                 "source": "app_picker",
                 "filename": filename,
@@ -396,26 +392,26 @@ struct MainView: View {
             switch fileExtension {
             case "pdf":
                 item = SharedItemModel.createPDFItem(
-                    title: filename,
+                    title: displayTitle,
                     pdfData: data,
                     metadata: metadata
                 )
             case "xlsx", "xls":
                 item = SharedItemModel.createExcelItem(
-                    title: filename,
+                    title: displayTitle,
                     excelData: data,
                     metadata: metadata
                 )
             case "mp4", "mov":
                 item = SharedItemModel.createVideoItem(
-                    title: filename,
+                    title: displayTitle,
                     videoData: data,
                     metadata: metadata
                 )
             case "jpg", "jpeg", "png":
                 if let image = UIImage(data: data) {
                     item = SharedItemModel.createPhotoItem(
-                        title: filename,
+                        title: displayTitle,
                         imageData: data,
                         metadata: metadata
                     )
@@ -425,7 +421,7 @@ struct MainView: View {
                 let fileManager = SharedStorageManager.shared
                 if let filePath = fileManager.saveFile(data: data, filename: filename) {
                     item = SharedItemModel(
-                        title: filename,
+                        title: displayTitle,
                         contentType: "file",
                         filePath: filePath,
                         textContent: nil,
@@ -571,11 +567,15 @@ struct ItemDetailView: View {
     
     @State private var isEditing = false
     @State private var editedTitle: String
+    @State private var editedContent: String
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isContentFocused: Bool
+    @State private var showingShareSheet = false
     
     init(item: SharedItem) {
         self.item = item
         _editedTitle = State(initialValue: item.title)
+        _editedContent = State(initialValue: item.content)
     }
     
     var body: some View {
@@ -604,16 +604,16 @@ struct ItemDetailView: View {
                             Text("标题")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
+                        
                             Spacer()
                             
                             if isEditing {
                                 Button("保存") {
-                                    saveTitle()
+                                    saveChanges()
                                 }
                                 .font(.caption)
                                 .foregroundColor(.blue)
-                                .disabled(editedTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                                .disabled(!isContentValid)
                             }
                         }
                         
@@ -630,13 +630,30 @@ struct ItemDetailView: View {
                     
                     Divider()
                     
-                    // 内容
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("内容")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(item.content)
-                            .font(.body)
+                    // 内容区域
+                    if hasFile {
+                        // 文件类型：显示文件卡片
+                        fileContentView
+                    } else {
+                        // 文本/URL类型：显示文本内容（支持编辑）
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("内容")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            if isEditing {
+                                TextEditor(text: $editedContent)
+                                    .font(.body)
+                                    .frame(minHeight: 200)
+                                    .padding(8)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(8)
+                                    .focused($isContentFocused)
+                            } else {
+                                Text(item.content)
+                                    .font(.body)
+                            }
+                        }
                     }
                     
                     Spacer()
@@ -657,17 +674,21 @@ struct ItemDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isEditing {
                         Button("完成") {
-                            if saveTitle() {
+                            if saveChanges() {
                                 dismiss()
                             }
                         }
                         .font(.body.weight(.semibold))
+                        .disabled(!isContentValid)
                     } else {
                         HStack(spacing: 16) {
-                            Button(action: {
-                                startEditing()
-                            }) {
-                                Image(systemName: "pencil")
+                            // 只有文本类型才显示编辑按钮
+                            if !hasFile {
+                                Button(action: {
+                                    startEditing()
+                                }) {
+                                    Image(systemName: "pencil")
+                                }
                             }
                             
                             Button("完成") {
@@ -677,47 +698,299 @@ struct ItemDetailView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingShareSheet) {
+                if let fileURL = fileURL {
+                    ShareSheet(items: [fileURL])
+                }
+            }
+        }
+    }
+    
+    // 判断是否有文件
+    private var hasFile: Bool {
+        // 只对真正的文件类型返回 true，排除纯文本和URL
+        let fileTypes: [SharedContentType] = [.image, .pdf, .document, .video]
+        return fileTypes.contains(item.contentType) && fileURL != nil
+    }
+    
+    // 获取文件URL
+    private var fileURL: URL? {
+        // 通过SharedStorageManager获取文件
+        let storage = SharedStorageManager.shared
+        let items = storage.loadItems()
+        
+        guard let storedItem = items.first(where: { $0.id == item.id.uuidString }),
+              let filePath = storedItem.filePath else {
+            return nil
+        }
+        
+        return storage.getFileURL(relativePath: filePath)
+    }
+    
+    // 文件信息
+    private var fileInfo: (size: String, name: String)? {
+        guard let url = fileURL else { return nil }
+        
+        let fileName = url.lastPathComponent
+        let fileSize: String
+        
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attributes[.size] as? Int64 {
+            fileSize = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        } else {
+            fileSize = "未知大小"
+        }
+        
+        return (size: fileSize, name: fileName)
+    }
+    
+    // 文件内容视图
+    private var fileContentView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("文件")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            // 图片预览（如果是图片类型）
+            if item.contentType == .image, let url = fileURL, let imageData = try? Data(contentsOf: url), let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 200)
+                    .cornerRadius(12)
+            }
+            
+            // 文件信息卡片
+            VStack(spacing: 0) {
+                // 文件图标和信息
+                HStack(spacing: 16) {
+                    // 文件类型图标
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: item.contentType.icon)
+                            .font(.system(size: 28))
+                            .foregroundColor(.blue)
+                    }
+                    
+                    // 文件详细信息
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let info = fileInfo {
+                            Text(info.name)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .lineLimit(2)
+                            
+                            Text(info.size)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text(item.contentType.rawValue)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(4)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                
+                // 操作按钮
+                Divider()
+                
+                Button(action: {
+                    showingShareSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("分享或打开")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .padding()
+                    .foregroundColor(.blue)
+                }
+            }
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+        }
+    }
+    
+    // 验证内容是否有效
+    private var isContentValid: Bool {
+        if hasFile {
+            // 文件类型只需要标题不为空
+            return !editedTitle.trimmingCharacters(in: .whitespaces).isEmpty
+        } else {
+            // 文本类型需要内容不为空
+            return !editedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
     
     private func startEditing() {
         isEditing = true
         editedTitle = item.title
-        isTitleFocused = true
+        editedContent = item.content
+        // 自动聚焦到内容输入框（如果不是文件类型）
+        if !hasFile {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isContentFocused = true
+            }
+        } else {
+            isTitleFocused = true
+        }
     }
     
     private func cancelEditing() {
         isEditing = false
         editedTitle = item.title
+        editedContent = item.content
         isTitleFocused = false
+        isContentFocused = false
     }
     
     @discardableResult
-    private func saveTitle() -> Bool {
+    private func saveChanges() -> Bool {
         let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespaces)
+        let trimmedContent = editedContent.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !trimmedTitle.isEmpty else {
-            return false
+        if hasFile {
+            // 文件类型只保存标题
+            guard !trimmedTitle.isEmpty else {
+                return false
+            }
+            
+            if trimmedTitle == item.title {
+                isEditing = false
+                isTitleFocused = false
+                return true
+            }
+            
+            SharedStorageManager.shared.updateItemTitle(id: item.id.uuidString, newTitle: trimmedTitle)
+        } else {
+            // 文本类型保存标题和内容
+            guard !trimmedContent.isEmpty else {
+                return false
+            }
+            
+            // 如果标题和内容都没有变化，直接退出编辑
+            if trimmedTitle == item.title && trimmedContent == item.content {
+                isEditing = false
+                isTitleFocused = false
+                isContentFocused = false
+                return true
+            }
+            
+            // 如果标题为空，使用内容的前30个字符作为标题
+            let finalTitle = trimmedTitle.isEmpty ? String(trimmedContent.prefix(30)) : trimmedTitle
+            SharedStorageManager.shared.updateItemContent(id: item.id.uuidString, newTitle: finalTitle, newContent: trimmedContent)
         }
-        
-        // 如果标题没有变化，直接退出编辑
-        if trimmedTitle == item.title {
-            isEditing = false
-            isTitleFocused = false
-            return true
-        }
-        
-        // 更新存储
-        SharedStorageManager.shared.updateItemTitle(id: item.id.uuidString, newTitle: trimmedTitle)
         
         // 刷新界面
         manager.refresh()
         
         isEditing = false
         isTitleFocused = false
+        isContentFocused = false
         
-        print("✅ Updated title to: \(trimmedTitle)")
+        print("✅ Updated item: \(trimmedTitle)")
         return true
+    }
+}
+
+/// 文本输入视图
+struct TextInputView: View {
+    let onSave: (String, String) -> Void
+    
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var title: String = ""
+    @State private var content: String = ""
+    @FocusState private var contentFocused: Bool
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // 标题输入
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("标题")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("输入标题（可选）", text: $title)
+                            .font(.title3.weight(.semibold))
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    
+                    Divider()
+                    
+                    // 内容输入
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("内容")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextEditor(text: $content)
+                            .font(.body)
+                            .frame(minHeight: 200)
+                            .padding(8)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                            .focused($contentFocused)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("添加文本")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        onSave(title, content)
+                        dismiss()
+                    }
+                    .font(.body.weight(.semibold))
+                    .disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                // 视图出现时自动聚焦到内容输入框
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    contentFocused = true
+                }
+            }
+        }
+    }
+}
+
+/// 分享面板（UIActivityViewController 包装）
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // 不需要更新
     }
 }
 

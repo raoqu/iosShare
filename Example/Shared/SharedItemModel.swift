@@ -164,6 +164,27 @@ final class SharedStorageManager: @unchecked Sendable {
         }
     }
     
+    /// 更新项目标题和内容
+    func updateItemContent(id: String, newTitle: String, newContent: String) {
+        var items = loadItems()
+        
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            let oldItem = items[index]
+            let updatedItem = SharedItemModel(
+                id: oldItem.id,
+                title: newTitle,
+                contentType: oldItem.contentType,
+                filePath: oldItem.filePath,
+                textContent: newContent,
+                metadata: oldItem.metadata,
+                timestamp: oldItem.timestamp
+            )
+            items[index] = updatedItem
+            saveItems(items)
+            print("✅ Updated item content: \(newTitle)")
+        }
+    }
+    
     /// 删除项目
     func deleteItem(id: String) {
         var items = loadItems()

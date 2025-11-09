@@ -178,8 +178,18 @@ class SharedItemsManager: ObservableObject {
                 default: contentType = .text
                 }
                 
-                // 如果有文件路径，显示文件路径；否则显示文本内容
-                let content = model.textContent ?? model.filePath ?? ""
+                // 生成显示用的内容
+                let content: String
+                if let textContent = model.textContent, !textContent.isEmpty {
+                    // 有文本内容（文本或URL类型）
+                    content = textContent
+                } else if let filePath = model.filePath {
+                    // 文件类型，显示文件名（不带路径）
+                    let fileName = (filePath as NSString).lastPathComponent
+                    content = fileName
+                } else {
+                    content = ""
+                }
                 
                 // 使用 SharedItemModel 的 id 创建 UUID（如果可能）
                 let itemId: UUID

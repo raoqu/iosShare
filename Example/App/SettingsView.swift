@@ -18,7 +18,7 @@ struct SettingsView: View {
                             editingRule = rule
                         }
                     }
-                    .onDelete(perform: settingsManager.deleteRule)
+                    .onDelete(perform: settingsManager.deleteRule(at:))
                     
                     Button(action: {
                         showingAddRule = true
